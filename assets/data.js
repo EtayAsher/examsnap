@@ -4,9 +4,9 @@ window.KTData = (() => {
   const CITY_MAX_DISTANCE_KM = 80;
 
   const CATEGORY_META = {
-    chabad: { label: 'Chabad', color: '#355caa' },
-    restaurant: { label: 'Restaurant', color: '#1f7a5a' },
-    grocery: { label: 'Grocery', color: '#b0681b' }
+    chabad: { label: 'Chabad', color: '#2f6edb' },
+    restaurant: { label: 'Restaurant', color: '#d9342b' },
+    grocery: { label: 'Grocery', color: '#1e9c52' }
   };
 
   const CERTIFICATION_META = {

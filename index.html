@@ -33,9 +33,16 @@
     <section class="layout">
       <section class="panel list-wrap">
         <div class="list-head"><h2>Places</h2><p id="resultCount" class="muted"></p></div>
+        <label class="search-wrap" for="placeSearch">
+          <span class="search-label">Search places</span>
+          <input id="placeSearch" type="search" placeholder="Search restaurants, grocery, or Chabad" autocomplete="off" />
+        </label>
         <div id="resultsList" class="results"></div>
       </section>
-      <section class="panel map-wrap"><div id="map"></div></section>
+      <section class="panel map-wrap">
+        <div id="map"></div>
+        <p id="mapError" class="map-error" hidden>Map failed to load. Please refresh.</p>
+      </section>
     </section>
   </main>
 
