@@ -1,6 +1,6 @@
 window.KTFinder = (() => {
   const CATEGORIES = ['chabad', 'restaurant', 'grocery'];
-  const CATEGORY_ICON = { chabad: '🕍', restaurant: '🍽️', grocery: '🛒' };
+  const CATEGORY_ICON = { chabad: '🕍', restaurant: '🍽', grocery: '🛒' };
   const MAX_MARKERS_PER_CITY = 100;
   let map;
   let markersLayer;
@@ -11,12 +11,15 @@ window.KTFinder = (() => {
   let activeCategory = 'all';
   let includeReported = false;
   let currentFiltered = [];
+  let searchTerm = '';
 
   async function init() {
     const citySelect = document.getElementById('citySelect');
     const categoryFilters = document.getElementById('categoryFilters');
     const reportedToggle = document.getElementById('reportedToggle');
     const resultsList = document.getElementById('resultsList');
+    const placeSearch = document.getElementById('placeSearch');
+    const mapError = document.getElementById('mapError');
 
     resultsList.innerHTML = skeletonCards();
     cities = await KTData.fetchCities();
@@ -51,12 +54,17 @@ window.KTFinder = (() => {
       render();
     });
 
+    placeSearch.addEventListener('input', () => {
+      searchTerm = placeSearch.value.trim().toLowerCase();
+      render();
+    });
+
     resultsList.addEventListener('click', (event) => {
       const card = event.target.closest('.card[data-id]');
       if (!card) return;
       const place = currentFiltered.find((entry) => entry.id === card.dataset.id);
       if (!place) return;
-      map.flyTo([place.lat, place.lng], Math.max(map.getZoom(), 14), { duration: 0.45 });
+      map.flyTo([place.lat, place.lng], Math.max(map.getZoom(), 15), { duration: 0.65, easeLinearity: 0.25 });
     });
 
     resultsList.addEventListener('keydown', (event) => {
@@ -67,11 +75,15 @@ window.KTFinder = (() => {
     });
 
     map = L.map('map', { zoomControl: true, preferCanvas: true });
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    const tileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
       attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
       updateWhenIdle: true,
       keepBuffer: 2
-    }).addTo(map);
+    });
+    tileLayer.on('tileerror', () => {
+      mapError.hidden = false;
+    });
+    tileLayer.addTo(map);
     markersLayer = L.layerGroup();
     markerCluster = L.markerClusterGroup({ chunkedLoading: true, maxClusterRadius: 40, disableClusteringAtZoom: 14 });
     markerCluster.addLayer(markersLayer);
@@ -95,6 +107,7 @@ window.KTFinder = (() => {
     const resultsList = document.getElementById('resultsList');
     const resultCount = document.getElementById('resultCount');
     const shabbatPlan = getActiveShabbatPlan();
+    const baseCityPlaces = places.filter((place) => place.cityId === city.id);
 
     map.setView(city.center, city.zoom, { animate: false });
 
@@ -102,6 +115,13 @@ window.KTFinder = (() => {
       .filter((place) => place.cityId === city.id)
       .filter((place) => (includeReported ? ['verified', 'reported', 'needsCheck'].includes(place.certificationLevel) : place.certificationLevel === 'verified'))
       .filter((place) => activeCategory === 'all' || place.category === activeCategory)
+      .filter((place) => {
+        if (!searchTerm) return true;
+        const normalizedCategory = KTData.CATEGORY_META[place.category].label.toLowerCase();
+        return place.name.toLowerCase().includes(searchTerm)
+          || normalizedCategory.includes(searchTerm)
+          || place.category.toLowerCase().includes(searchTerm);
+      })
       .slice(0, MAX_MARKERS_PER_CITY)
       .map((place) => {
         if (!shabbatPlan?.hotel) return place;
@@ -112,7 +132,8 @@ window.KTFinder = (() => {
     resultCount.textContent = `${cityPlaces.length} places`;
 
     if (!cityPlaces.length) {
-      resultsList.innerHTML = '<div class="empty"><p>🧭</p><p>No places found for this filter.</p></div>';
+      const emptyMessage = baseCityPlaces.length ? 'No places found for this filter.' : 'No kosher places found in this city yet.';
+      resultsList.innerHTML = `<div class="empty"><p>🧭</p><p>${emptyMessage}</p></div>`;
       markersLayer.clearLayers();
       return;
     }
@@ -123,9 +144,9 @@ window.KTFinder = (() => {
       const websiteButton = KTData.isValidWebsite(place.website) ? `<a class="btn btn-secondary" href="${place.website}" target="_blank" rel="noopener noreferrer" aria-label="Open website for ${place.name}">Website</a>` : '';
       const distanceLine = Number.isFinite(place.distanceKm) ? `<p class="distance">From hotel: ${KTData.formatDistance(place.distanceKm)}</p>` : '';
       return `<article class="card" data-id="${place.id}" tabindex="0" role="button" aria-label="View ${place.name} on map">
-        <h3>${place.name}</h3>
+        <h3 class="place-title">${place.name}</h3>
         <p class="badges"><span class="badge" style="--badge:${meta.color}">${CATEGORY_ICON[place.category]} ${meta.label}</span><span class="badge cert" style="--badge:${cert.color}">✓ ${cert.label}</span></p>
-        <p class="muted">${place.fullAddress}</p>
+        <p class="place-address">${place.fullAddress}</p>
         ${distanceLine}
         <div class="actions">
           ${websiteButton}
@@ -145,11 +166,11 @@ window.KTFinder = (() => {
   }
 
   function skeletonCards() {
-    return Array.from({ length: 5 }).map(() => '<div class="card skeleton"><div></div><div></div><div></div></div>').join('');
+    return Array.from({ length: 3 }).map(() => '<div class="card skeleton"><div></div><div></div><div></div></div>').join('');
   }
 
   function markerIcon(color, index = 0) {
-    return L.divIcon({ className: '', html: `<span class="pin" style="--pin:${color};--delay:${Math.min(index * 30, 350)}ms"></span>`, iconSize: [18, 18], iconAnchor: [9, 9] });
+    return L.divIcon({ className: '', html: `<span class="pin" style="--pin:${color};--delay:${Math.min(index * 30, 350)}ms"></span>`, iconSize: [22, 22], iconAnchor: [11, 11] });
   }
 
   return { init };
